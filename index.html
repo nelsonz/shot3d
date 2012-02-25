@@ -1,0 +1,211 @@
+<!DOCTYPE HTML>
+<html lang="en">
+	<head>
+	</head>
+	<body>
+
+		<script src="js/Three.js"></script>
+		<script src="js/jquery.min.js"></script>
+
+		<script>
+			var keyW = false,
+				keyA = false,
+				keyS = false,
+				keyD = false,
+				camera,
+				ship,
+				scene, 
+				renderer, 
+				mouseX = 0, 
+				mouseY = 0, 
+				particles = [];
+				STARTPOS = {x: 0, y: 0, z: 1000};
+				MOVERANGE = 500; MOVEDIST = 25;
+				
+			init();
+			
+			function onKeyDown(event){
+				console.log(event.keyCode || event.which);
+				switch (event.keyCode || event.which) {
+					case 87:
+					  keyW = true;
+					  break;
+					case 83:
+					  keyS = true;
+					  break;
+					case 65:
+					  keyA = true;
+					  break;
+					case 68:
+					  keyD = true;
+					  break;
+				  }
+			}
+			
+			function onKeyUp(event){
+				switch (event.keyCode || event.which) {
+					case 87:
+					  keyW = false;
+					  break;
+					case 83:
+					  keyS = false;
+					  break;
+					case 65:
+					  keyA = false;
+					  break;
+					case 68:
+					  keyD = false;
+					  break;
+				  }
+			}
+
+			function init() {
+
+				// Camera params : 
+				// field of view, aspect ratio for render output, near and far clipping plane. 
+				camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 10000 );
+
+				camera.position.z = 1000;
+				camera.target = new THREE.Vector3(0, 0, 0);
+
+				scene = new THREE.Scene();
+				
+				var geometry = new THREE.CylinderGeometry( 0, 1, 2, 3 );
+				geometry.applyMatrix(new THREE.Matrix4().setRotationFromEuler( new THREE.Vector3( Math.PI / 2, Math.PI, 0 ) ) );
+				var material = new THREE.MeshNormalMaterial();
+				ship = new THREE.Mesh(geometry, material);
+				ship.target = new THREE.Vector3(0, 0, 0);
+				ship.position.x = camera.position.x;
+				ship.position.y = camera.position.y - 10;
+				ship.position.z = camera.position.z - 50;
+				scene.add(ship);
+				
+				renderer = new THREE.CanvasRenderer();
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+				// the renderer's canvas domElement is added to the body
+				$('body').append(renderer.domElement);
+
+				makeParticles(); 
+
+				$(document).mousemove(onMouseMove);
+				$(document).keyup(onKeyUp);
+				$(document).keydown(onKeyDown);
+				// render 30 times a second (should also look 
+				// at requestAnimationFrame) 
+				setInterval(update,1000/30); 
+			}
+
+			// the main update function, called 30 times a second
+
+			function update() {
+				//camera.position.y = mouseY - window.innerHeight/2;
+				//camera.position.x = mouseX - window.innerWidth/2;
+				if (keyS && camera.position.y >= STARTPOS.y - MOVERANGE) {
+					camera.position.y -= MOVEDIST;
+					camera.target.y -= MOVEDIST*1000;
+				}
+				if (keyW && camera.position.y <= STARTPOS.y + MOVERANGE) {
+					camera.position.y += MOVEDIST;
+					camera.target.y += MOVEDIST*1000;
+				}
+				if (keyA && camera.position.x >= STARTPOS.x - MOVERANGE) {
+					camera.position.x -= MOVEDIST;
+					camera.target.X -= MOVEDIST*1000;
+				}
+				if (keyD && camera.position.x <= STARTPOS.x + MOVERANGE) {
+					camera.position.x += MOVEDIST;
+					camera.target.X += MOVEDIST*1000;
+				}
+				camera.target.y = -(mouseY/window.innerHeight - 1/2) * 1000;
+				camera.target.x = (mouseX/window.innerWidth - 1/2) * 1000;
+				camera.lookAt(camera.target);
+				ship.position.x = camera.position.x;
+				ship.position.y = camera.position.y - 1.5;
+				ship.position.z = camera.position.z - 3;
+				ship.target.x = camera.target.x;
+				ship.target.y = camera.target.y;
+				ship.target.z = camera.target.z/10;
+				ship.lookAt(ship.target);
+				updateParticles();
+				renderer.render(scene, camera);
+
+			}
+
+			// creates a random field of Particle objects - runs once
+
+			function makeParticles() { 
+
+				var particle, material; 
+
+				// we're gonna move from z position -1000 (far away) 
+				// to 1000 (where the camera is) and add a random particle at every pos. 
+				for ( var zpos= -10000; zpos < 1000; zpos+=50 ) {
+
+					// we make a particle material and pass through the 
+					// colour and custom particle render function we defined. 
+					material = new THREE.ParticleCanvasMaterial( { color: 0xFF0000, program: particleRender } );
+					// make the particle
+					particle = new THREE.Particle(material);
+
+					// give it a random x and y position between -500 and 500
+					particle.position.x = (Math.random() - 1/2) * 4000;
+					particle.position.y = (Math.random() - 1/2) * 4000;
+
+					// set its z position
+					particle.position.z = zpos;
+
+					// scale it up a bit
+					particle.scale.x = particle.scale.y = 10;
+
+					// add it to the scene
+					scene.add(particle);
+
+					// and to the array of particles. 
+					particles.push(particle); 
+				}
+
+			}
+
+			// there isn't a built in circle particle renderer 
+			// so we have to define our own. 
+
+			function particleRender( context ) {
+
+				// we get passed a reference to the canvas context
+				context.beginPath();
+				// and we just have to draw our shape at 0,0 - in this
+				// case an arc from 0 to 2Pi radians or 360º - a full circle!
+				context.arc( 0, 0, 2.5, 0,  Math.PI * 2, true );
+				context.fill();
+			};
+
+
+			// moves all the particles dependent on mouse position
+
+			function updateParticles() { 
+
+				// iterate through every particle
+				for(var i=0; i<particles.length; i++) {
+
+					particle = particles[i]; 
+
+					// and move it forward dependent on the mouseY position. 
+					particle.position.z += 50;
+
+					// if the particle is too close move it to the back
+					if(particle.position.z>2000) particle.position.z-=8000; 
+
+				}
+
+			}
+
+
+			function onMouseMove( event) {
+				mouseX = event.clientX;
+				mouseY = event.clientY;
+			}
+
+		</script>
+	</body>
+</html>
